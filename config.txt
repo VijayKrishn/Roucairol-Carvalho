@@ -1,0 +1,37 @@
+#
+# Configuration file for AOS Project 2
+# 
+#
+# As per the "shell" convention, anything following a hash sign is
+# a comment and should be ignored by the parser.
+
+# Number of nodes
+10    	
+
+# First, we list the location of each node
+#
+# Format is:
+# Identifier	Hostname	Port	
+	0				dc01		3332	
+	1				dc33		5678	
+	2				dc21		5231	
+	3				dc33		2311	
+	4				dc22		3124	
+	5				dc03		3432	
+	6				dc21		7878	
+	7				dc05		7361	
+	8				dc04		4341	
+	9				dc22		6754
+
+
+# Distribution of shared keys can be done in an arbitrary manner
+
+# Parameters to control the behavior of the application
+
+# number of critical section requests per node
+1000       
+# Mean delay between two consecutive critical section requests
+50        
+# Mean duration of critical section
+10 	
+# Use exponential probability distribution for the last two parameters

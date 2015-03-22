@@ -1,3 +1,5 @@
+import java.io.BufferedReader;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.Socket;
@@ -7,27 +9,62 @@ import java.util.HashMap;
 public class Manager {
 	public boolean[] permissions;
 	public boolean[] reqDefered;
+	// totalNumber = number of processes/nodes
 	public int totalNumber;
-	public int nodeNo;
+	public static int nodeNo;
+	// nodeNo = current process/node
 	public int OUR_SEQ_NUMBER, HIGH_SEQ_NUM;
 	public boolean USING, WAITING;
 	public int counter;
 	public HashMap<Integer,String> nodeMap = new HashMap<Integer,String>();
 	public Server server;
+	// E = Critical section execution time
+	// SD = Syncronization delay, delay between two critical section executions
+	// CSRequests = Number of critical section requests
+	public static int E, SD, CSRequests;
 	
 	public Object lock = new Object(); 
 	
 	public static void main(String args[]){
+		nodeNo = Integer.parseInt(args[0]);
 		Manager manage = new Manager();
-		//manage.parseConfigFile();
 		manage.start("config.txt");
 		manage.stop();
 	}
 	
 	public void parseConfigFile(String fileName){
 		//parse config file and set values
-		nodeNo = 1;
-		totalNumber = 5;
+		BufferedReader br;
+		totalNumber = -1;
+		E = SD = CSRequests = -1;
+		int linecount = 0;
+		try {
+			br = new BufferedReader(new FileReader(fileName));
+			String line;
+			while((line = br.readLine()) != null){
+				if(line.length() == 0);
+				else if(line.charAt(0) == '#');
+				else if(totalNumber == -1){
+					totalNumber = Integer.parseInt(line.trim());
+					linecount = totalNumber;
+					//System.out.println(linecount);
+				}
+				else if(linecount>0){
+					line = line.trim().replaceAll("(\t)+", ",");
+					System.out.println(line);
+					//Initializing the Hashmap with the node configuration
+					nodeMap.put(Integer.parseInt(line.split(",")[0]), line.split(",")[1] + ":" + line.split(",")[2]);
+					linecount--;
+				}else if(CSRequests == -1)
+					CSRequests = Integer.parseInt(line.trim());
+				else if(SD == -1)
+					SD = Integer.parseInt(line.trim());
+				else if(E == -1)
+					E = Integer.parseInt(line.trim());
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 		OUR_SEQ_NUMBER=0;
 		HIGH_SEQ_NUM = 0;
 		permissions = new boolean[totalNumber];
@@ -39,13 +76,9 @@ public class Manager {
 	
 	public void start(String fileName){
 		parseConfigFile(fileName);
-		
 		server = new Server(this);
-		
 		Thread serverThread = new Thread(server);
 		serverThread.start();
-		
-		
 	}
 	
 	public void stop(){
@@ -60,13 +93,14 @@ public class Manager {
 		for(int i=1;i<=totalNumber;i++){
 			if(i!=nodeNo && !permissions[i]){
 				sendRequest(OUR_SEQ_NUMBER,nodeNo,i);
-			}else if(i!=nodeNo && permissions[i])
-				counter++;
+			}
+			
+			// only when we receive a reply counter is incremented.
+//			else if(i!=nodeNo && permissions[i])
+//				counter++;
 		}
 		
-		while(counter != totalNumber-1){
-			
-		}
+		while(counter != totalNumber-1){ }
 		synchronized(lock){
 		this.WAITING = false;
 		this.USING = true;
@@ -82,15 +116,13 @@ public class Manager {
 		for(int j = 1;j<=totalNumber;j++){
 			if(reqDefered[j]){
 				permissions[j]=false;
+				counter--;
 				reqDefered[j]=false;
 				sendReply(nodeNo, j);
 			}
-				
 		}
 		}
-		
 		return true;
-		
 	}
 	
 	public void sendRequest(int seqNumber,int nodeNumber, int destination){
@@ -130,8 +162,8 @@ public class Manager {
 			writer.println("REP");
 			writer.println(nodeNo);
 			//The method readLine is blocked until a message is received 
-
-			counter--;
+			//*****Should be decremented when permission is made false.
+			//counter--;
 			writer.close();
 			clientSocket.close();
 		}
@@ -161,6 +193,7 @@ public class Manager {
 			sendReply(nodeNo, theirNodeNo);
 		} else if(WAITING && permissions[theirNodeNo] && !ourPriority){
 			permissions[theirNodeNo] = false;
+			//counter--;
 			sendReply(nodeNo, theirNodeNo);
 			sendRequest(OUR_SEQ_NUMBER, nodeNo, theirNodeNo);
 		}
@@ -173,5 +206,5 @@ public class Manager {
 		permissions[theirNodeNo] = true;
 		counter++;
 		}
-	}	
+	}
 }

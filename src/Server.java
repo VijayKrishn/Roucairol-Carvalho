@@ -10,6 +10,8 @@ public class Server implements Runnable{
 	public Manager manage;
  
 	public boolean end = true;
+
+	private ServerSocket serverSock;
 	
 	public Server(Manager mang){
 		this.manage = mang;
@@ -26,8 +28,7 @@ public class Server implements Runnable{
 		String message="Hello from server";
 		try
 		{
-			//Create a server socket at port 5000
-			ServerSocket serverSock = new ServerSocket(5000);
+			serverSock = new ServerSocket(5000);
 			//Server goes into a permanent loop accepting connections from clients			
 			while(end)
 			{
