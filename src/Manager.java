@@ -23,6 +23,7 @@ public class Manager {
 	 * WAITING = Process waiting for requested keys
 	 * OUR_SEQ_NUMBER = Logical clock value used for sending request
 	 * HIGH_SEQ_NUMBER = Logical clock of the process that gets updated in case of an event
+	 * serverport = Port on which the server runs.
 	 */
 	
 	public boolean[] permissions;
@@ -37,6 +38,7 @@ public class Manager {
 	public String fileName;
 	public int E, SD, CSRequests;
 	public Object lock = new Object(); 
+	public int serverport;
 	
 	
 	public Manager(int nodeNo, String fileName){
@@ -68,9 +70,10 @@ public class Manager {
 				}
 				else if(linecount>0){
 					line = line.trim().replaceAll("(\t)+", ",");
-					System.out.println(line);
+					//System.out.println(line);
 					//Initializing the Hashmap with the node configuration
-					nodeMap.put(Integer.parseInt(line.split(",")[0]), line.split(",")[1] + ":" + line.split(",")[2]);
+					serverport = Integer.parseInt(line.split(",")[2]);
+					nodeMap.put(Integer.parseInt(line.split(",")[0]), line.split(",")[1] + ":" + serverport);
 					linecount--;
 				}else if(CSRequests == -1)
 					CSRequests = Integer.parseInt(line.trim());
@@ -98,9 +101,15 @@ public class Manager {
 	
 	public void start(){
 		parseConfigFile(fileName);
-		server = new Server(this);
+		server = new Server(this, serverport);
 		Thread serverThread = new Thread(server);
 		serverThread.start();
+		try {
+			Thread.sleep(5000);
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
 	
 	/**
@@ -120,7 +129,7 @@ public class Manager {
 		    this.WAITING =true;
 		    OUR_SEQ_NUMBER = HIGH_SEQ_NUM+1;
 		}
-		for(int i=1;i<=totalNumber;i++){
+		for(int i=0;i<totalNumber;i++){
 			if(i!=nodeNo && !permissions[i]){
 				sendRequest(OUR_SEQ_NUMBER,nodeNo,i);
 			}
@@ -130,7 +139,8 @@ public class Manager {
 //				counter++;
 		}
 		
-		while(counter != totalNumber-1){ }
+		while(counter != totalNumber-1){ 		System.out.println("current vLUE IS " +counter);
+}
 		synchronized(lock){
 		this.WAITING = false;
 		this.USING = true;
@@ -148,7 +158,7 @@ public class Manager {
 	public boolean cs_exit(){
 		synchronized(lock){
 		this.USING = false;
-		for(int j = 1;j<=totalNumber;j++){
+		for(int j = 0;j<totalNumber;j++){
 			if(reqDefered[j]){
 				permissions[j]=false;
 				counter--;
@@ -181,6 +191,8 @@ public class Manager {
 			writer.println(seqNumber);
 			writer.println(nodeNumber);
 			//The method readLine is blocked until a message is received 
+			
+			System.out.println("sent request to "+ destination);
 
 			writer.close();
 			clientSocket.close();
@@ -212,6 +224,7 @@ public class Manager {
 			//The method readLine is blocked until a message is received 
 			//*****Should be decremented when permission is made false.
 			//counter--;
+			System.out.println("sent reply to "+ destination);
 			writer.close();
 			clientSocket.close();
 		}
@@ -244,10 +257,11 @@ public class Manager {
 			reqDefered[theirNodeNo] = true;
 		} else if(!(USING || WAITING) ||(WAITING && !permissions[theirNodeNo] && !ourPriority)){
 			permissions[theirNodeNo] = false;
+			counter--;
 			sendReply(nodeNo, theirNodeNo);
 		} else if(WAITING && permissions[theirNodeNo] && !ourPriority){
 			permissions[theirNodeNo] = false;
-			//counter--;
+			counter--;
 			sendReply(nodeNo, theirNodeNo);
 			sendRequest(OUR_SEQ_NUMBER, nodeNo, theirNodeNo);
 		}
@@ -264,6 +278,8 @@ public class Manager {
 		synchronized(lock){
 		permissions[theirNodeNo] = true;
 		counter++;
+		System.out.println(counter);
+
 		}
 	}
 }

@@ -9,10 +9,11 @@ public class Testing {
 	public static void main(String[] args) {
 		// TODO Auto-generated method stub
 		int nodeNo = Integer.parseInt(args[0]);
-		String file = "Config.txt";
+		String file = "sample.txt";
 		Manager manage = new Manager(nodeNo, file);
 		manage.start();
 		manage.cs_enter();
+		System.out.println("cs_enter");
 		try {
 			Thread.sleep(3000);
 		} catch (InterruptedException e) {
@@ -20,6 +21,7 @@ public class Testing {
 			e.printStackTrace();
 		}
 		manage.cs_exit();
+		System.out.println("cs_exit");
 	}
 
 }
