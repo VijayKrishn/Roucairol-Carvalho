@@ -1,7 +1,5 @@
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
+import java.io.ObjectInputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 
@@ -27,10 +25,8 @@ public class Server implements Runnable{
 	
 	public void go()
 	{
-		String message="Hello from server";
 		try
 		{
-			//System.out.println(port);
 			serverSock = new ServerSocket(port);
 			//Server goes into a permanent loop accepting connections from clients			
 			while(end)
@@ -39,22 +35,38 @@ public class Server implements Runnable{
 				//The method blocks until a connection is made
 				Socket sock = serverSock.accept();
 				//PrintWriter is a bridge between character data and the socket's low-level output stream
+//				PrintWriter writer = new PrintWriter(sock.getOutputStream());
+//				writer.println(message);
+//				writer.close();
 				
-				BufferedReader br = new BufferedReader(new InputStreamReader(sock.getInputStream()));
-				String cmd = br.readLine();
-				System.out.println(cmd);
-				
-				if(cmd.equalsIgnoreCase("REQ")){
-					String theirSeqNum = br.readLine();
-					System.out.println("TheirSeqNum : " + theirSeqNum);
-					String requestedNode = br.readLine();
-					System.out.println("received request from : " + requestedNode);
-					manage.processReqMsg(theirSeqNum,requestedNode);
+				//BufferedReader br = new BufferedReader(new InputStreamReader(sock.getInputStream()));
+				ObjectInputStream ois = new ObjectInputStream(sock.getInputStream());
+				//String cmd = br.readLine();
+				Message msg = new Message();
+				try {
+					msg = (Message) ois.readObject();
+				} catch (ClassNotFoundException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
 				}
-				else if(cmd.equalsIgnoreCase("REP")){
-					String repliedNode = br.readLine();
-					System.out.println("received reply from : " + repliedNode);
-					manage.processReplyMsg(repliedNode);
+				
+				if(msg.messageType.equalsIgnoreCase("REQ")){
+					int theirSeqNum = msg.seqNumber;
+					//String requestedNode = br.readLine();
+					int requestedNode = msg.sourceNode;
+					//System.out.println("received request from "+requestedNode);
+					manage.processReqMsg(theirSeqNum,requestedNode);
+					
+				}
+				else if(msg.messageType.equalsIgnoreCase("REP")){
+					
+					//String repliedNode = br.readLine();
+					int repliedNode = msg.sourceNode;
+                    int[] csVect = msg.csVec;
+					int csCount = msg.csCount;
+					//System.out.println("received reply from "+repliedNode);
+					manage.processReplyMsg(repliedNode,csVect,csCount);
+					
 				}
 			}
 		}

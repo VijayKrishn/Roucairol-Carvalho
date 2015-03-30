@@ -1,9 +1,10 @@
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
-import java.io.PrintWriter;
+import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.util.HashMap;
+import java.util.concurrent.locks.ReentrantLock;
 
 
 public class Manager {
@@ -23,22 +24,23 @@ public class Manager {
 	 * WAITING = Process waiting for requested keys
 	 * OUR_SEQ_NUMBER = Logical clock value used for sending request
 	 * HIGH_SEQ_NUMBER = Logical clock of the process that gets updated in case of an event
-	 * serverport = Port on which the server runs.
 	 */
 	
-	public boolean[] permissions;
-	public boolean[] reqDefered;
+	public volatile boolean[] permissions;
+	public volatile boolean[] reqDefered;
 	public int totalNumber;
 	public int nodeNo;
 	public int OUR_SEQ_NUMBER, HIGH_SEQ_NUM;
-	public boolean USING, WAITING;
+	public volatile boolean USING, WAITING;
 	public int counter;
 	public HashMap<Integer,String> nodeMap = new HashMap<Integer,String>();
 	public Server server;
 	public String fileName;
 	public int E, SD, CSRequests;
-	public Object lock = new Object(); 
-	public int serverport;
+	public ReentrantLock lock = new ReentrantLock(); 
+	public volatile boolean flag = false;
+	public volatile int[] csVector;
+	public volatile int csCounter;
 	
 	
 	public Manager(int nodeNo, String fileName){
@@ -72,8 +74,7 @@ public class Manager {
 					line = line.trim().replaceAll("(\t)+", ",");
 					//System.out.println(line);
 					//Initializing the Hashmap with the node configuration
-					serverport = Integer.parseInt(line.split(",")[2]);
-					nodeMap.put(Integer.parseInt(line.split(",")[0]), line.split(",")[1] + ":" + serverport);
+					nodeMap.put(Integer.parseInt(line.split(",")[0]), line.split(",")[1] + ":" + line.split(",")[2]);
 					linecount--;
 				}else if(CSRequests == -1)
 					CSRequests = Integer.parseInt(line.trim());
@@ -89,6 +90,8 @@ public class Manager {
 		HIGH_SEQ_NUM = 0;
 		permissions = new boolean[totalNumber];
 		reqDefered = new boolean[totalNumber];
+		csVector = new int[totalNumber];
+		csCounter = 0;
 		USING = false;
 		WAITING = false;
 		counter = 0;
@@ -101,7 +104,9 @@ public class Manager {
 	
 	public void start(){
 		parseConfigFile(fileName);
-		server = new Server(this, serverport);
+		String add = nodeMap.get(nodeNo);
+		String[] ips = add.split(":");
+		server = new Server(this, Integer.parseInt(ips[1]));
 		Thread serverThread = new Thread(server);
 		serverThread.start();
 		try {
@@ -125,13 +130,18 @@ public class Manager {
 	 */
 	
 	public boolean cs_enter(){
+		int csSum=0;
 		synchronized(lock){
+                    //System.out.println("lock acquired "+ nodeNo);
 		    this.WAITING =true;
 		    OUR_SEQ_NUMBER = HIGH_SEQ_NUM+1;
+            System.out.println("CS requested from node "+nodeNo+" with " + OUR_SEQ_NUMBER);
+                   // System.out.println("lock released "+ nodeNo);
 		}
 		for(int i=0;i<totalNumber;i++){
 			if(i!=nodeNo && !permissions[i]){
 				sendRequest(OUR_SEQ_NUMBER,nodeNo,i);
+                                //System.out.println("SEQ NUM of request from "+ nodeNo + "is" + OUR_SEQ_NUMBER);
 			}
 			
 			// only when we receive a reply counter is incremented.
@@ -139,16 +149,32 @@ public class Manager {
 //				counter++;
 		}
 		
-		while(counter != totalNumber-1){ 		System.out.println("current vLUE IS " +counter);
-}
+		while(!flag){ 
+		//	System.out.println("CS counter"+ counter);
+                        
+		}
+                //System.out.println("nenu true "+ nodeNo);
 		synchronized(lock){
-		this.WAITING = false;
-		this.USING = true;
-		System.out.println("In critical section of "+ nodeNo);
+                    System.out.println("lock acquired for CS "+ nodeNo);
+		    this.WAITING = false;
+		    this.USING = true;
+		    csVector[nodeNo]++;
+		    csCounter++;
+		    
+		    System.out.println("CS Vector is:");
+		    for(int k=0;k<totalNumber;k++){
+			    csSum = csSum+csVector[k];
+			    System.out.print(csVector[k] + " ");
+		    }
+		    if(csSum>csCounter)
+		         System.out.println("MUTUAL EXCLUSION VIOLATED");
+		    System.out.println("CS counter is"+ csCounter);
+		    System.out.println("In critical section of "+ nodeNo + " for "+ OUR_SEQ_NUMBER);
+                   // System.out.println("lock released for CS "+ nodeNo);
 		}
 		
 		return true;
-	}
+	}//System.out.print(String.valueOf(permissions[k])+" ");
 	
 	/**
 	 * leaves critical section after this method is called.
@@ -157,15 +183,17 @@ public class Manager {
 	
 	public boolean cs_exit(){
 		synchronized(lock){
+               // System.out.println("lock acquired "+ nodeNo);
 		this.USING = false;
 		for(int j = 0;j<totalNumber;j++){
 			if(reqDefered[j]){
 				permissions[j]=false;
-				counter--;
+				checkFlag();
 				reqDefered[j]=false;
 				sendReply(nodeNo, j);
 			}
 		}
+             //   System.out.println("lock released "+ nodeNo);
 		}
 		return true;
 	}
@@ -186,15 +214,17 @@ public class Manager {
 			Socket clientSocket = new Socket(ips[0],Integer.parseInt(ips[1]));
 			//Read messages from server. Input stream are in bytes. They are converted to characters by InputStreamReader
 			//Characters from the InputStreamReader are converted to buffered characters by BufferedReader
-			PrintWriter writer = new PrintWriter(clientSocket.getOutputStream());
-			writer.println("REQ");
-			writer.println(seqNumber);
-			writer.println(nodeNumber);
+			//PrintWriter writer = new PrintWriter(clientSocket.getOutputStream());
+			//writer.println("REQ");
+			//writer.println(seqNumber);
+			//writer.println(nodeNumber);
 			//The method readLine is blocked until a message is received 
-			
-			System.out.println("sent request to "+ destination);
-
-			writer.close();
+           // System.out.println("sent request to "+ destination+" from "+ nodeNo);
+			ObjectOutputStream oos = new ObjectOutputStream(clientSocket.getOutputStream());
+			Message reqMsg = new Message("REQ",null,-1,nodeNumber,seqNumber);
+			oos.writeObject(reqMsg);
+			//writer.close();
+			oos.close();
 			clientSocket.close();
 		}
 		catch(IOException ex)
@@ -218,14 +248,21 @@ public class Manager {
 			Socket clientSocket = new Socket(ips[0],Integer.parseInt(ips[1]));
 			//Read messages from server. Input stream are in bytes. They are converted to characters by InputStreamReader
 			//Characters from the InputStreamReader are converted to buffered characters by BufferedReader
-			PrintWriter writer = new PrintWriter(clientSocket.getOutputStream());
-			writer.println("REP");
-			writer.println(nodeNo);
+			//PrintWriter writer = new PrintWriter(clientSocket.getOutputStream());
+			ObjectOutputStream oos = new ObjectOutputStream(clientSocket.getOutputStream());
+			Message replyMsg = new Message("REP",csVector,csCounter,nodeNo,-1);
+			oos.writeObject(replyMsg);
+			//writer.println("REP");
+			//writer.println(nodeNo);
+			//oos.writeObject(csVector);
+			//writer.println(csCounter);
 			//The method readLine is blocked until a message is received 
 			//*****Should be decremented when permission is made false.
 			//counter--;
-			System.out.println("sent reply to "+ destination);
-			writer.close();
+			//System.out.println("sent reply to "+ destination+ " from "+ nodeNo);
+			//writer.close();
+			
+			oos.close();
 			clientSocket.close();
 		}
 		catch(IOException ex)
@@ -240,31 +277,34 @@ public class Manager {
 	 * @param requestedNode
 	 */
 	
-	public void processReqMsg(String theirSeqNum, String requestedNode){
-		int theirNum = Integer.parseInt(theirSeqNum);
-		int theirNodeNo = Integer.parseInt(requestedNode);
-		boolean ourPriority = true;
+	public void processReqMsg(int theirSeqNum, int requestedNode){
+		int theirNum = theirSeqNum;
+		int theirNodeNo = requestedNode;
+		boolean ourPriority = false;
 		synchronized(lock){		
-			
+		//System.out.println("lock acquired "+ nodeNo);
+	
 		HIGH_SEQ_NUM = Math.max(theirNum, HIGH_SEQ_NUM);
 		if(theirNum > OUR_SEQ_NUMBER){
-			ourPriority = false;
-		}else if(theirNum ==OUR_SEQ_NUMBER && theirNodeNo > nodeNo)
-			ourPriority = false;
+			ourPriority = true;
+		}else if((theirNum ==OUR_SEQ_NUMBER) && (theirNodeNo > nodeNo))
+			ourPriority = true;
 		
 		
 		if(USING ||(WAITING && ourPriority)){
 			reqDefered[theirNodeNo] = true;
 		} else if(!(USING || WAITING) ||(WAITING && !permissions[theirNodeNo] && !ourPriority)){
 			permissions[theirNodeNo] = false;
-			counter--;
+                        checkFlag();
+			
 			sendReply(nodeNo, theirNodeNo);
 		} else if(WAITING && permissions[theirNodeNo] && !ourPriority){
 			permissions[theirNodeNo] = false;
-			counter--;
+			checkFlag();
 			sendReply(nodeNo, theirNodeNo);
 			sendRequest(OUR_SEQ_NUMBER, nodeNo, theirNodeNo);
 		}
+                //System.out.println("lock released "+ nodeNo);
 		}
 	}
 	
@@ -273,13 +313,42 @@ public class Manager {
 	 * @param repliedNode
 	 */
 	
-	public void processReplyMsg(String repliedNode){
-		int theirNodeNo  = Integer.parseInt(repliedNode);
+	public void processReplyMsg(int repliedNode, int[] csVecs, int csCount){
+		int theirNodeNo  = repliedNode;
 		synchronized(lock){
+                //System.out.println("lock acquired reply"+ nodeNo);
+			for(int k=0;k<totalNumber;k++){
+				csVector[k]  = Math.max(csVector[k],csVecs[k]);
+			}
+			csCounter = Math.max(csCounter, csCount);
 		permissions[theirNodeNo] = true;
-		counter++;
-		System.out.println(counter);
-
+		checkFlag();
+		
+		//System.out.println("lock released reply"+ nodeNo);
 		}
+	}
+	
+	public void checkFlag(){
+		
+		
+			boolean check=true;
+			for(int i=0;i<totalNumber;i++){
+				if(i!=nodeNo){
+					check = check & permissions[i];
+				}
+			}
+			
+			if(check){
+                               // System.out.println("Node number "+nodeNo+" flag changed because of "+ String.valueOf(check)+ " and permission array is:");
+		                for(int k=0;k<totalNumber;k++){
+			            // System.out.print(String.valueOf(permissions[k])+" ");
+		                }
+                                System.out.println("#################");
+                        }
+			flag = check;
+                       // if(flag)
+                           // System.out.println("changed flag to "+ String.valueOf(flag));
+			
+		
 	}
 }

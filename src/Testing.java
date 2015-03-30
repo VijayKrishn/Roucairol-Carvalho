@@ -12,16 +12,25 @@ public class Testing {
 		String file = "sample.txt";
 		Manager manage = new Manager(nodeNo, file);
 		manage.start();
+                for(int i=0;i<10;i++){
 		manage.cs_enter();
-		System.out.println("cs_enter");
+		System.out.println("' CS entered");
 		try {
-			Thread.sleep(3000);
+			Thread.sleep(10);
 		} catch (InterruptedException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+		System.out.println("CS exit");
 		manage.cs_exit();
-		System.out.println("cs_exit");
+		try {
+			Thread.sleep(10);
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+                }
 	}
 
 }
