@@ -3,6 +3,10 @@ import java.io.Serializable;
 
 public class Message implements Serializable{
  
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 9140730713756612073L;
 	public String messageType;
 	public int[] csVec=null;
 	public int csCount=0;
