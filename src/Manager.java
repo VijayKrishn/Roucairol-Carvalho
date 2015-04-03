@@ -2,6 +2,7 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.ObjectOutputStream;
+import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.HashMap;
 import java.util.concurrent.locks.ReentrantLock;
@@ -144,9 +145,7 @@ public class Manager {
                                 //System.out.println("SEQ NUM of request from "+ nodeNo + "is" + OUR_SEQ_NUMBER);
 			}
 			
-			// only when we receive a reply counter is incremented.
-//			else if(i!=nodeNo && permissions[i])
-//				counter++;
+			
 		}
 		
 		while(!flag){ 
@@ -166,8 +165,10 @@ public class Manager {
 			    csSum = csSum+csVector[k];
 			    System.out.print(csVector[k] + " ");
 		    }
-		    if(csSum>csCounter)
+		    if(csSum>csCounter){
 		         System.out.println("MUTUAL EXCLUSION VIOLATED");
+		         csCounter++;
+		    } 
 		    System.out.println("CS counter is"+ csCounter);
 		    System.out.println("In critical section of "+ nodeNo + " for "+ OUR_SEQ_NUMBER);
                    // System.out.println("lock released for CS "+ nodeNo);
@@ -212,13 +213,7 @@ public class Manager {
 			String[] ips = address.split(":");
 			//Create a client socket and connect to server at 127.0.0.1 port 5000
 			Socket clientSocket = new Socket(ips[0],Integer.parseInt(ips[1]));
-			//Read messages from server. Input stream are in bytes. They are converted to characters by InputStreamReader
-			//Characters from the InputStreamReader are converted to buffered characters by BufferedReader
-			//PrintWriter writer = new PrintWriter(clientSocket.getOutputStream());
-			//writer.println("REQ");
-			//writer.println(seqNumber);
-			//writer.println(nodeNumber);
-			//The method readLine is blocked until a message is received 
+			
            // System.out.println("sent request to "+ destination+" from "+ nodeNo);
 			ObjectOutputStream oos = new ObjectOutputStream(clientSocket.getOutputStream());
 			Message reqMsg = new Message("REQ",null,-1,nodeNumber,seqNumber);
@@ -252,15 +247,7 @@ public class Manager {
 			ObjectOutputStream oos = new ObjectOutputStream(clientSocket.getOutputStream());
 			Message replyMsg = new Message("REP",csVector,csCounter,nodeNo,-1);
 			oos.writeObject(replyMsg);
-			//writer.println("REP");
-			//writer.println(nodeNo);
-			//oos.writeObject(csVector);
-			//writer.println(csCounter);
-			//The method readLine is blocked until a message is received 
-			//*****Should be decremented when permission is made false.
-			//counter--;
-			//System.out.println("sent reply to "+ destination+ " from "+ nodeNo);
-			//writer.close();
+			
 			
 			oos.close();
 			clientSocket.close();
